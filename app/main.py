@@ -8,9 +8,11 @@ app = FastAPI(
     version="1.0.0"
 )
 
-app.include_router(router)
+# ✅ API routes MUST be registered before StaticFiles mount
+# Otherwise StaticFiles at "/" catches everything first
+app.include_router(router, prefix="/api")
 
-# Serve frontend
+# Serve frontend — mounted LAST so API routes take priority
 app.mount(
     "/",
     StaticFiles(directory="app/static", html=True),

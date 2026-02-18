@@ -19,7 +19,9 @@ def process_pdf(input_path, lang="eng", dpi=400):
             config="--oem 3 --psm 6",
         )
         extracted_text.append(text)
-
+        
+        del page
+        
         pdf_bytes = pytesseract.image_to_pdf_or_hocr(
             clean_page,
             lang=lang,

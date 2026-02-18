@@ -11,6 +11,7 @@
             background: #f4f6f9;
             text-align: center;
             padding: 40px;
+            margin: 0;
         }
 
         .container {
@@ -33,6 +34,7 @@
             color: white;
             border: none;
             cursor: pointer;
+            border-radius: 5px;
         }
 
         button:hover {
@@ -50,6 +52,7 @@
             background: #f1f1f1;
             padding: 10px;
             font-size: 14px;
+            border-radius: 5px;
         }
 
         #actionSection {
@@ -66,6 +69,22 @@
             width: 100%;
             height: 500px;
             border: 1px solid #ddd;
+        }
+
+        footer {
+            margin-top: 40px;
+            padding: 15px;
+            font-size: 13px;
+            color: #888;
+        }
+
+        footer a {
+            color: #007bff;
+            text-decoration: none;
+        }
+
+        footer a:hover {
+            text-decoration: underline;
         }
     </style>
 </head>
@@ -93,7 +112,6 @@
         <a id="downloadLink" download="searchable_output.pdf">
             <button>⬇ Download Searchable PDF</button>
         </a>
-
         <button onclick="previewPDF()">👁 Preview PDF</button>
     </div>
 
@@ -104,9 +122,61 @@
     <div class="result" id="textOutput"></div>
 </div>
 
+<footer>
+    &copy; 2025 <a href="https://github.com/dev-tech" target="_blank">@dev-tech</a>. All rights reserved.
+</footer>
+
 <script>
 let generatedPDFUrl = null;
 
+/* ──────────────────────────────────────────────
+   On page load → reset UI + cleanup leftover files
+   ────────────────────────────────────────────── */
+window.addEventListener("load", () => {
+    resetUI();
+    cleanupServer();
+});
+
+/* ──────────────────────────────────────────────
+   On page unload (refresh / close / navigate away)
+   sendBeacon is used because it fires reliably on unload
+   ────────────────────────────────────────────── */
+window.addEventListener("beforeunload", () => {
+    navigator.sendBeacon("/api/cleanup");  // ✅ prefixed with /api
+});
+
+/* ──────────────────────────────────────────────
+   Cleanup helper
+   ────────────────────────────────────────────── */
+async function cleanupServer() {
+    try {
+        await fetch("/api/cleanup", { method: "POST" });  // ✅ prefixed with /api
+    } catch (e) {
+        // silently ignore
+    }
+}
+
+/* ──────────────────────────────────────────────
+   Reset all UI elements to default state
+   ────────────────────────────────────────────── */
+function resetUI() {
+    document.getElementById("pdfFile").value = "";
+    document.getElementById("loader").style.display = "none";
+    document.getElementById("actionSection").style.display = "none";
+    document.getElementById("pdfPreview").style.display = "none";
+    document.getElementById("textOutput").innerHTML = "";
+    document.getElementById("pdfFrame").src = "";
+    document.getElementById("downloadLink").href = "#";
+
+    if (generatedPDFUrl) {
+        window.URL.revokeObjectURL(generatedPDFUrl);
+        generatedPDFUrl = null;
+    }
+}
+
+/* ──────────────────────────────────────────────
+   Upload & OCR
+   ────────────────────────────────────────────── */
 async function uploadPDF() {
     const fileInput = document.getElementById("pdfFile");
     const lang = document.getElementById("language").value;
@@ -127,35 +197,39 @@ async function uploadPDF() {
     textOutput.innerHTML = "";
 
     try {
-        const response = await fetch("/ocr/?lang=" + lang, {
+        const response = await fetch("/api/ocr/?lang=" + lang, {  // ✅ prefixed with /api
             method: "POST",
             body: formData
         });
 
         if (!response.ok) {
-            throw new Error("Server error");
+            const err = await response.json().catch(() => ({}));
+            throw new Error(err.detail || "Server error");
         }
 
         const blob = await response.blob();
-        generatedPDFUrl = window.URL.createObjectURL(blob);
 
+        if (generatedPDFUrl) window.URL.revokeObjectURL(generatedPDFUrl);
+
+        generatedPDFUrl = window.URL.createObjectURL(blob);
         document.getElementById("downloadLink").href = generatedPDFUrl;
 
         actionSection.style.display = "block";
         textOutput.innerHTML = "✅ OCR Completed Successfully!";
     } catch (error) {
-        alert("Error processing file.");
+        textOutput.innerHTML = `❌ Error: ${error.message}`;
         console.error(error);
     } finally {
         loader.style.display = "none";
     }
 }
 
+/* ──────────────────────────────────────────────
+   Preview PDF
+   ────────────────────────────────────────────── */
 function previewPDF() {
     if (!generatedPDFUrl) return;
-
-    const frame = document.getElementById("pdfFrame");
-    frame.src = generatedPDFUrl;
+    document.getElementById("pdfFrame").src = generatedPDFUrl;
     document.getElementById("pdfPreview").style.display = "block";
 }
 </script>
