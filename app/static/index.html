@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>ScanSutra OCR</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background: #f4f6f9;
+            text-align: center;
+            padding: 40px;
+        }
+
+        .container {
+            background: white;
+            max-width: 600px;
+            margin: auto;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+        }
+
+        input, select, button {
+            width: 100%;
+            padding: 10px;
+            margin-top: 10px;
+        }
+
+        button {
+            background: #007bff;
+            color: white;
+            border: none;
+            cursor: pointer;
+        }
+
+        button:hover {
+            background: #0056b3;
+        }
+
+        .loader {
+            display: none;
+            margin-top: 15px;
+            font-weight: bold;
+        }
+
+        .result {
+            margin-top: 20px;
+            background: #f1f1f1;
+            padding: 10px;
+            font-size: 14px;
+        }
+
+        #actionSection {
+            display: none;
+            margin-top: 15px;
+        }
+
+        #pdfPreview {
+            display: none;
+            margin-top: 20px;
+        }
+
+        iframe {
+            width: 100%;
+            height: 500px;
+            border: 1px solid #ddd;
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h1>📄 ScanSutra OCR</h1>
+    <p>Upload PDF → Get Searchable PDF</p>
+
+    <input type="file" id="pdfFile" accept="application/pdf">
+
+    <select id="language">
+        <option value="eng">English</option>
+        <option value="hin">Hindi</option>
+        <option value="hin+eng">Hindi + English</option>
+    </select>
+
+    <button onclick="uploadPDF()">Process PDF</button>
+
+    <div class="loader" id="loader">
+        ⏳ Processing... Please wait...
+    </div>
+
+    <div id="actionSection">
+        <a id="downloadLink" download="searchable_output.pdf">
+            <button>⬇ Download Searchable PDF</button>
+        </a>
+
+        <button onclick="previewPDF()">👁 Preview PDF</button>
+    </div>
+
+    <div id="pdfPreview">
+        <iframe id="pdfFrame"></iframe>
+    </div>
+
+    <div class="result" id="textOutput"></div>
+</div>
+
+<script>
+let generatedPDFUrl = null;
+
+async function uploadPDF() {
+    const fileInput = document.getElementById("pdfFile");
+    const lang = document.getElementById("language").value;
+    const loader = document.getElementById("loader");
+    const actionSection = document.getElementById("actionSection");
+    const textOutput = document.getElementById("textOutput");
+
+    if (!fileInput.files.length) {
+        alert("Please select a PDF file");
+        return;
+    }
+
+    const formData = new FormData();
+    formData.append("file", fileInput.files[0]);
+
+    loader.style.display = "block";
+    actionSection.style.display = "none";
+    textOutput.innerHTML = "";
+
+    try {
+        const response = await fetch("/ocr/?lang=" + lang, {
+            method: "POST",
+            body: formData
+        });
+
+        if (!response.ok) {
+            throw new Error("Server error");
+        }
+
+        const blob = await response.blob();
+        generatedPDFUrl = window.URL.createObjectURL(blob);
+
+        document.getElementById("downloadLink").href = generatedPDFUrl;
+
+        actionSection.style.display = "block";
+        textOutput.innerHTML = "✅ OCR Completed Successfully!";
+    } catch (error) {
+        alert("Error processing file.");
+        console.error(error);
+    } finally {
+        loader.style.display = "none";
+    }
+}
+
+function previewPDF() {
+    if (!generatedPDFUrl) return;
+
+    const frame = document.getElementById("pdfFrame");
+    frame.src = generatedPDFUrl;
+    document.getElementById("pdfPreview").style.display = "block";
+}
+</script>
+
+</body>
+</html>
