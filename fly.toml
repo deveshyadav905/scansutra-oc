@@ -1,0 +1,44 @@
+# fly.toml file generated for your app
+app = "ScanSutra OCR"  # replace with your Fly app name
+
+# Primary configuration for the app
+kill_signal = "SIGINT"
+kill_timeout = 5
+processes = []
+
+[build]
+  # Use the standard Python builder
+  builder = "paketobuildpacks/builder:base"
+
+[env]
+  # Example environment variables
+  PORT = "8080"
+  DEBUG = "false"
+  # Add your secrets via `fly secrets set KEY=VALUE` instead of putting them here
+
+[deploy]
+  # Wait for healthy checks before considering deployment successful
+  release_command = ""
+
+[[services]]
+  internal_port = 8080
+  protocol = "tcp"
+
+  [services.concurrency]
+    type = "connections"
+    soft_limit = 25
+    hard_limit = 50
+
+  [[services.ports]]
+    port = 80
+    handlers = ["http"]
+
+  [[services.ports]]
+    port = 443
+    handlers = ["tls", "http"]
+
+  [services.tcp_checks]
+    interval = 10000
+    timeout = 2000
+    grace_period = "10s"
+    restart_limit = 0
