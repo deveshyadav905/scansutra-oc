@@ -1,72 +1,107 @@
 import os
 import uuid
 import shutil
-from fastapi import APIRouter, UploadFile, File, HTTPException
-from fastapi.responses import FileResponse
-from app.ocr_engine import process_pdf
-from app.pdf_utils import merge_pdfs, cleanup as cleanup_temp_files
-
+import aiofiles
+from fastapi import APIRouter, UploadFile, File, HTTPException, Form
+from fastapi.responses import Response, JSONResponse
+from celery.result import AsyncResult
+from app.tasks import celery_app, run_ocr
 
 router = APIRouter()
 
-UPLOAD_DIR = "uploads"
-OUTPUT_DIR = "outputs"
-MAX_FILE_SIZE = 20 * 1024 * 1024  # 20MB limit
+BASE_DIR = "jobs"
+MAX_FILE_SIZE = 50 * 1024 * 1024  # 50 MB
+os.makedirs(BASE_DIR, exist_ok=True)
 
-os.makedirs(UPLOAD_DIR, exist_ok=True)
-os.makedirs(OUTPUT_DIR, exist_ok=True)
-
+def _job_dir(job_id: str) -> str:
+    path = os.path.join(BASE_DIR, job_id)
+    os.makedirs(path, exist_ok=True)
+    return path
 
 @router.post("/ocr/")
-async def ocr_pdf(file: UploadFile = File(...), lang: str = "eng"):
-    print("OCR request received")
-    print("Language:", lang)
-
-    # ✅ Validate file type
-    if file.content_type != "application/pdf":
+async def submit_ocr(
+    file: UploadFile = File(...),
+    lang: str = Form("eng"),
+):
+    if not file.filename.lower().endswith(".pdf"):
         raise HTTPException(status_code=400, detail="Only PDF files are allowed.")
 
-    # ✅ Validate file size
     contents = await file.read()
+    if len(contents) == 0:
+        raise HTTPException(status_code=400, detail="Uploaded file is empty.")
     if len(contents) > MAX_FILE_SIZE:
-        raise HTTPException(status_code=400, detail="File too large (Max 20MB).")
+        raise HTTPException(status_code=400, detail="File too large (max 50 MB).")
 
-    unique_id = str(uuid.uuid4())
-    input_path = os.path.join(UPLOAD_DIR, f"{unique_id}.pdf")
-    output_path = os.path.join(OUTPUT_DIR, f"{unique_id}_output.pdf")
+    job_id  = str(uuid.uuid4())
+    job_dir = _job_dir(job_id)
 
-    try:
-        # Save uploaded file
-        with open(input_path, "wb") as f:
-            f.write(contents)
+    input_path  = os.path.join(job_dir, "input.pdf")
+    output_path = os.path.join(job_dir, "output.pdf")
 
-        # Process OCR
-        pdf_files, texts = process_pdf(input_path, lang=lang)
+    async with aiofiles.open(input_path, "wb") as f:
+        await f.write(contents)
 
-        # Merge PDFs
-        merge_pdfs(pdf_files, output_path)
+    task = run_ocr.apply_async(
+        args=[input_path, output_path, lang, job_dir],
+        task_id=job_id,
+    )
 
-        # Cleanup temp page PDFs
-        cleanup_temp_files(pdf_files)
+    return JSONResponse(
+        status_code=202,
+        content={"job_id": task.id, "status": "queued"},
+    )
 
-        # Remove original upload to save storage
-        os.remove(input_path)
+@router.get("/status/{job_id}")
+async def job_status(job_id: str):
+    result = AsyncResult(job_id, app=celery_app)
 
-        return FileResponse(
-            output_path,
-            media_type="application/pdf",
-            filename="searchable_output.pdf",
+    if result.state == "PENDING":
+        return {"job_id": job_id, "status": "queued"}
+    if result.state == "STARTED":
+        return {"job_id": job_id, "status": "processing", "step": "Initializing"}
+    if result.state == "PROCESSING":
+        meta = result.info or {}
+        return {"job_id": job_id, "status": "processing", "step": meta.get("step", "Working")}
+    if result.state == "SUCCESS":
+        return {"job_id": job_id, "status": "done"}
+    if result.state == "FAILURE":
+        return JSONResponse(
+            status_code=500,
+            content={"job_id": job_id, "status": "failed", "error": str(result.info)},
         )
+    return {"job_id": job_id, "status": result.state.lower()}
 
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"OCR processing failed: {str(e)}")
+@router.get("/result/{job_id}")
+async def download_result(job_id: str):
+    result = AsyncResult(job_id, app=celery_app)
 
+    if result.state != "SUCCESS":
+        raise HTTPException(status_code=404, detail="Result not ready or job not found.")
 
-@router.post("/cleanup")
-async def cleanup_dirs():
-    """Clears uploads and outputs directories on page refresh/unload."""
-    for folder in [UPLOAD_DIR, OUTPUT_DIR]:
-        if os.path.exists(folder):
-            shutil.rmtree(folder)
-            os.makedirs(folder)
-    return {"status": "cleaned"}
+    info = result.result or {}
+    output_path = info.get("output_path")
+
+    if not output_path or not os.path.exists(output_path):
+        raise HTTPException(status_code=404, detail="Output file missing.")
+
+    async with aiofiles.open(output_path, "rb") as f:
+        pdf_bytes = await f.read()
+
+    # Clean up job directory after reading into memory
+    job_dir = os.path.join(BASE_DIR, job_id)
+    shutil.rmtree(job_dir, ignore_errors=True)
+
+    return Response(
+        content=pdf_bytes,
+        media_type="application/pdf",
+        headers={"Content-Disposition": "attachment; filename=searchable_output.pdf"},
+    )
+
+@router.delete("/job/{job_id}")
+async def cancel_job(job_id: str):
+    result = AsyncResult(job_id, app=celery_app)
+    result.revoke(terminate=True)
+    job_dir = os.path.join(BASE_DIR, job_id)
+    if os.path.exists(job_dir):
+        shutil.rmtree(job_dir, ignore_errors=True)
+    return {"job_id": job_id, "status": "cancelled"}

@@ -1,16 +1,28 @@
-from PyPDF2 import PdfMerger
 import os
+from pypdf import PdfWriter, PdfReader
 
 def merge_pdfs(pdf_files, output_path):
-    merger = PdfMerger()
+    if not pdf_files:
+        raise ValueError("No PDF pages to merge.")
 
-    for pdf in pdf_files:
-        merger.append(pdf)
+    writer = PdfWriter()
+    try:
+        for pdf in pdf_files:
+            if not os.path.exists(pdf):
+                raise FileNotFoundError(f"Temp page PDF missing: {pdf}")
+            reader = PdfReader(pdf)
+            for page in reader.pages:
+                writer.add_page(page)
 
-    merger.write(output_path)
-    merger.close()
+        with open(output_path, "wb") as f:
+            writer.write(f)
+    finally:
+        writer.close()
 
 def cleanup(files):
     for f in files:
-        if os.path.exists(f):
-            os.remove(f)
+        try:
+            if os.path.exists(f):
+                os.remove(f)
+        except OSError:
+            pass
