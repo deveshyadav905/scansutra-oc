@@ -3,34 +3,44 @@ version: "3.9"
 services:
   redis:
     image: redis:7-alpine
-    restart: unless-stopped
+    restart: always
     ports:
       - "6379:6379"
+    # ✅ 1. Define a Healthcheck for Redis
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
 
   api:
     build: .
-    command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload 
+    command: uvicorn main:app --host 0.0.0.0 --port 8000
     ports:
       - "8000:8000"
     environment:
       - REDIS_URL=redis://redis:6379/0
       - OCR_MAX_WORKERS=4
     volumes:
-      - .:/app  # Mounts whole codebase for hot-reload development
+      - .:/app
       - ./jobs:/app/jobs
+    # ✅ 2. Wait for Redis to be "healthy" before starting
     depends_on:
-      - redis
-    restart: unless-stopped
+      redis:
+        condition: service_healthy
+    restart: on-failure # ✅ 3. If it crashes anyway, Docker restarts it
 
   worker:
     build: .
-    command: celery -A app.tasks worker --loglevel=info --concurrency=2
+    command: celery -A app.tasks worker --loglevel=info --autoscale=4,1
     environment:
       - REDIS_URL=redis://redis:6379/0
       - OCR_MAX_WORKERS=4
     volumes:
       - .:/app
       - ./jobs:/app/jobs
+    # ✅ 4. Worker also waits for Redis
     depends_on:
-      - redis
-    restart: unless-stopped
+      redis:
+        condition: service_healthy
+    restart: on-failure
