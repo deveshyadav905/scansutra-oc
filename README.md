@@ -238,9 +238,9 @@ Log files rotate at **5MB**, keeping the last **3 files**.
 
 | Scenario | Behaviour |
 |---|---|
-| Normal refresh (F5) | Resumes polling the existing job |
-| Tab close / Ctrl+W | `sendBeacon` cancels job on server immediately |
-| Hard refresh (Ctrl+Shift+R) | Same as tab close — job cancelled, dir cleaned |
+| Normal refresh (F5) | `sessionStorage` keeps job_id → page reloads → polling resumes |
+| Tab close / Ctrl+W | `visibilitychange` + 500ms timer detects true close → cancels job |
+| Hard refresh (Ctrl+Shift+R) | `beforeunload` sets refresh flag → session preserved → job resumes |
 | New upload while job running | Old job cancelled automatically before new one starts |
 | Server restart mid-job | Worker detects deleted dir, exits cleanly — no file leaks |
 
