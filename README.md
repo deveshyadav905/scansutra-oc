@@ -1,250 +1,271 @@
-Here is the updated README with the live demo link added at the top.
-
-```markdown
 # 📄 ScanSutra OCR
 
-[![Live Demo](https://img.shields.io/badge/Live_Demo-Visit-blue?style=for-the-badge&logo=render)](https://pdf-scransutra.onrender.com)
+> Convert scanned PDFs into fully searchable PDFs using **FastAPI + Tesseract OCR**.
 
-> Convert scanned PDFs into fully searchable PDFs using **FastAPI + Tesseract OCR + Celery**.
-
-ScanSutra OCR is a modern, high-performance **OCR Web Application**. It transforms non-searchable scanned documents into searchable PDFs using **asynchronous background processing**, ensuring the API remains fast and responsive even for large files.
-
-Supports:
-- ✅ English OCR
-- ✅ Hindi OCR
-- ✅ Multi-language OCR (hin + eng)
-- ✅ Asynchronous Background Processing (Celery)
-- ✅ PDF preview in browser
-- ✅ Download searchable PDF
-- ✅ Clean and minimal UI
+ScanSutra OCR is a lightweight, high-performance OCR web application. It transforms non-searchable scanned documents into searchable PDFs using **async background processing** via Python's built-in `ProcessPoolExecutor` — no Redis, no Celery, no extra services required.
 
 ---
 
-## 🚀 Features
+## ✅ Features
 
-- 📤 Upload scanned PDF
-- 🌐 Select OCR language (English / Hindi / Multi)
-- 🔍 Convert scanned PDF to searchable PDF
-- ⚡ **Non-blocking background processing (Celery + Redis)**
-- 👁 Preview processed PDF
+- 📤 Upload scanned PDF (up to 50MB)
+- 🌐 Select OCR language — English / Hindi / Hindi + English
+- 🔍 Convert scanned PDF to fully searchable PDF
+- ⚡ Non-blocking background processing (ProcessPoolExecutor)
+- 👁 Preview processed PDF in browser
 - ⬇ Download searchable output
-- 🚀 **FastAPI backend API**
-- 🧠 OpenCV image preprocessing
-- 🛡 Secure file validation
+- 🧠 OpenCV image preprocessing for better accuracy
+- 🛡 File type + size validation
 - 🧹 Automatic temporary file cleanup
-
----
-
-## 🔎 SEO Keywords
-
-OCR Web App, PDF OCR Python, Searchable PDF Generator, FastAPI OCR API, Celery Background Tasks, Async OCR Python, Hindi OCR Tool, English OCR Tool, Multi-language OCR, Tesseract OCR Python, OpenCV PDF Processing, Scanned PDF Converter, OCR SaaS Starter Project, Railway FastAPI Deployment, Python OCR Web Application
+- 🚀 Multiple users handled simultaneously
 
 ---
 
 ## 🏗 Tech Stack
 
-- **Framework:** FastAPI
-- **Task Queue:** Celery + Redis
-- **OCR Engine:** Tesseract OCR
-- **Image Processing:** OpenCV
-- **PDF Handling:** pdf2image, PyPDF2
-- **Math:** NumPy
-- **Frontend:** HTML / CSS / JavaScript
+| Layer | Technology |
+|---|---|
+| Framework | FastAPI |
+| OCR Engine | Tesseract OCR |
+| Image Processing | OpenCV |
+| PDF Rendering | pdf2image + poppler |
+| PDF Merging | pypdf |
+| Parallelism | ProcessPoolExecutor (built-in) |
+| Package Manager | uv |
+| Frontend | HTML / CSS / Vanilla JS |
 
 ---
 
 ## 📂 Project Structure
 
 ```
-ocr_web_app/
+scansutra/
 │
-├── app/
-│   ├── main.py              # FastAPI App Entry Point
-│   ├── routes.py            # API Endpoints
-│   ├── celery.py            # Celery Configuration & App Instance
-│   ├── tasks.py             # Background OCR Tasks
-│   ├── ocr_engine.py        # Tesseract Logic
-│   ├── preprocessing.py     # OpenCV Logic
-│   ├── pdf_utils.py         # PDF Manipulation
-│   └── static/
-│       └── index.html
-│
-├── uploads/                 # Temporary Upload Directory
-├── outputs/                 # Processed PDF Directory
+├── main.py                  # FastAPI app entry point
 ├── requirements.txt
-└── README.md
+├── README.md
+│
+└── app/
+    ├── __init__.py
+    ├── routes.py            # API endpoints
+    ├── job_manager.py       # Process pool job queue (replaces Celery)
+    ├── ocr_engine.py        # Tesseract OCR logic (parallel pages)
+    ├── preprocessing.py     # OpenCV image cleanup
+    ├── pdf_utils.py         # PDF merge + cleanup
+    └── static/
+        └── index.html       # Frontend UI
+
+jobs/                        # Auto-created — one folder per upload
+└── {uuid}/
+    ├── input.pdf            # Uploaded file (deleted after OCR)
+    ├── temp_page_N.pdf      # Per-page output (deleted after merge)
+    └── output.pdf           # Final result (deleted after download)
 ```
 
 ---
 
-## ⚙ Installation Guide
+## ⚙ Installation
 
-### 1️⃣ Clone the Repository
+### 1. Clone & enter project
 
 ```bash
 git clone https://github.com/yourusername/scansutra-ocr.git
 cd scansutra-ocr
 ```
 
----
-
-### 2️⃣ Create Virtual Environment
+### 2. Install `uv` (fast Python package manager)
 
 ```bash
-python3 -m venv venv
-source venv/bin/activate
+# Linux / macOS
+curl -Lsf https://astral.sh/uv/install.sh | sh
+
+# Windows (PowerShell)
+powershell -c "irm https://astral.sh/uv/install.ps1 | iex"
 ```
 
-OR using uv:
+> `uv` is 10–100x faster than `pip`. It replaces both `pip` and `venv`.
+
+### 3. Create virtual environment with Python 3.12
 
 ```bash
-uv venv
-source .venv/bin/activate
+uv venv --python 3.12
+source .venv/bin/activate        # Linux / macOS
+.venv\Scripts\activate           # Windows
 ```
 
----
-
-### 3️⃣ Install Python Dependencies
+### 4. Install Python dependencies
 
 ```bash
-pip install -r requirements.txt
+uv pip install -r requirements.txt
 ```
 
-*Ensure `celery` and `redis` are included in your `requirements.txt`.*
+### 5. Install system dependencies
 
----
-
-## 📦 System Dependencies (Required)
-
-### Ubuntu / Debian
-
+**Ubuntu / Debian:**
 ```bash
-# Tesseract OCR & Languages
-sudo apt install tesseract-ocr
-sudo apt install tesseract-ocr-hin
-sudo apt install poppler-utils
-
-# Redis Server (Broker)
-sudo apt install redis-server
-sudo systemctl start redis-server
+sudo apt install tesseract-ocr tesseract-ocr-hin poppler-utils
 ```
 
-### macOS
-
+**macOS:**
 ```bash
-# Tesseract
-brew install tesseract
-brew install poppler
-
-# Redis
-brew install redis
-brew services start redis
+brew install tesseract poppler
+brew install tesseract-lang      # for Hindi support
 ```
 
-### Windows
-
-1.  Install Tesseract from [UB-Mannheim/tesseract](https://github.com/UB-Mannheim/tesseract/wiki).
-2.  Install Redis for Windows or use Docker:
-    ```bash
-    docker run -d -p 6379:6379 redis
-    ```
+**Windows:**
+- Tesseract: https://github.com/UB-Mannheim/tesseract/wiki
+- Poppler: https://github.com/oschwartz10612/poppler-windows/releases
 
 ---
 
-## ▶ Run Application
+## ▶ Run
 
-Because we use Celery for background tasks, you need to run **three** processes (Redis, Celery Worker, and FastAPI).
-
-### Step 1: Start Redis (Message Broker)
-If using Docker:
 ```bash
-docker run -p 6379:6379 redis
-```
-If installed natively, ensure the service is running.
-
-### Step 2: Start Celery Worker (The "Chef")
-Open a new terminal window in the project folder and run:
-```bash
-celery -A app.celery worker --loglevel=info
-```
-*(Note: Ensure `app.celery` matches your file structure).*
-
-### Step 3: Start FastAPI Server
-Open a third terminal window:
-```bash
-uvicorn app.main:app --reload
+uvicorn main:app --host 0.0.0.0 --port 8000 --reload
 ```
 
 Open browser:
-
 ```
-http://127.0.0.1:8000
+http://localhost:8000
 ```
 
-*Or visit the live demo: https://pdf-scransutra.onrender.com*
+That's it — **one command, no background services needed**.
 
 ---
 
-## 📌 API Endpoint
+## 🚀 API Endpoints
 
-### Convert PDF (Async)
+| Method | Endpoint | Description |
+|---|---|---|
+| POST | `/api/ocr/` | Upload PDF, returns `job_id` |
+| GET | `/api/status/{job_id}` | Poll job progress |
+| GET | `/api/result/{job_id}` | Download finished PDF |
+| DELETE | `/api/job/{job_id}` | Cancel / cleanup job |
 
-Submits the PDF to the queue and returns a Task ID.
+### Example flow
 
+```bash
+# 1. Submit
+curl -X POST http://localhost:8000/api/ocr/ \
+  -F "file=@scan.pdf" \
+  -F "lang=eng"
+# → {"job_id": "abc-123", "status": "queued"}
+
+# 2. Poll
+curl http://localhost:8000/api/status/abc-123
+# → {"status": "processing", "step": "Starting OCR"}
+# → {"status": "done"}
+
+# 3. Download
+curl http://localhost:8000/api/result/abc-123 -o output.pdf
 ```
-POST /ocr/?lang=eng
-POST /ocr/?lang=hin
-POST /ocr/?lang=hin+eng
+
+---
+
+## ⚡ Speed Optimizations Applied
+
+| Optimization | Impact |
+|---|---|
+| DPI lowered 300 → 200 | ~2x faster PDF-to-image conversion |
+| `use_pdftocairo=True` | Faster rendering than default pdftoppm |
+| `thread_count` in pdf2image | Parallel page rendering |
+| `ThreadPoolExecutor` per job | All pages OCR'd in parallel |
+| `ProcessPoolExecutor` for jobs | Multiple users processed simultaneously |
+| Single tesseract call per page | Removed duplicate OCR call |
+| `COLOR_RGB2GRAY` (correct) | Accurate grayscale → better OCR results |
+
+### DPI guide
+
+| DPI | Speed | Quality | Use for |
+|---|---|---|---|
+| 150 | ⚡⚡⚡ Fast | ⭐⭐ OK | Large files, quick preview |
+| 200 | ⚡⚡ Good | ⭐⭐⭐ Good | **Default — best balance** |
+| 300 | ⚡ Slow | ⭐⭐⭐⭐ High | Legal / archival documents |
+
+Change DPI via env var:
+```bash
+OCR_DPI=150 uvicorn main:app --reload   # faster
+OCR_DPI=300 uvicorn main:app --reload   # higher quality
 ```
 
-*The frontend should poll a status endpoint (e.g., `/tasks/{task_id}`) to check when processing is finished.*
+---
+
+## 🔧 Environment Variables
+
+| Variable | Default | Description |
+|---|---|---|
+| `OCR_MAX_WORKERS` | `4` | Threads per job for page-level parallelism |
+| `MAX_PARALLEL_JOBS` | `2` | Max simultaneous OCR jobs |
+| `OCR_DPI` | `200` | DPI for PDF-to-image rendering |
+
+---
+
+## 📦 uv Cheat Sheet
+
+```bash
+# Install uv
+curl -Lsf https://astral.sh/uv/install.sh | sh
+
+# Create venv
+uv venv --python 3.12
+
+# Activate
+source .venv/bin/activate
+
+# Install from requirements.txt
+uv pip install -r requirements.txt
+
+# Add a new package
+uv pip install some-package
+
+# Freeze current packages
+uv pip freeze > requirements.txt
+
+# Check uv version
+uv --version
+```
+
+---
+
+## 🛡 Security
+
+- PDF-only file validation (filename check)
+- 50MB file size limit
+- UUID-based isolated job directories
+- Automatic cleanup after download
+- No user data retained after processing
 
 ---
 
 ## 📈 Use Cases
 
 - Government document digitization
-- Hindi voter list OCR
-- Legal document scanning
-- Archive digitization
-- Newspaper scanning
-- Multi-language document search
-- **High-volume OCR processing**
-- OCR SaaS starter template
-
----
-
-## 🛡 Security
-
-- File type validation (PDF only)
-- File size restriction
-- UUID-based file naming
-- Temporary file cleanup
-- Safe file handling
-- Async task isolation
+- Hindi / multilingual document OCR
+- Legal and archival document scanning
+- Newspaper and book digitization
+- High-volume OCR processing pipeline
 
 ---
 
 ## 🧠 Future Improvements
 
-- [ ] Docker Compose setup (One-click deployment)
-- [ ] Real-time progress updates via WebSockets
+- [ ] WebSocket real-time progress updates
 - [ ] Multi-file batch upload
-- [ ] User authentication & JWT
-- [ ] OCR history database storage
+- [ ] OCR history with database storage
 - [ ] Cloud storage (S3) integration
+- [ ] Docker one-click deployment
 - [ ] API key support for SaaS model
+- [ ] User authentication + JWT
 
 ---
 
 ## 👨‍💻 Author
 
-Devesh Yadav  
-Python Backend Developer | OCR & Web Scraping Specialist
+**Devesh Yadav**  
+Python Backend Developer | OCR & Automation Specialist
 
 ---
 
 ## 📜 License
 
 MIT License
-```

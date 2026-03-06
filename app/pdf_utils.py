@@ -1,5 +1,8 @@
+# app/pdf_utils.py
+
 import os
 from pypdf import PdfWriter, PdfReader
+
 
 def merge_pdfs(pdf_files, output_path):
     if not pdf_files:
@@ -18,6 +21,7 @@ def merge_pdfs(pdf_files, output_path):
             writer.write(f)
     finally:
         writer.close()
+
 
 def cleanup(files):
     for f in files:

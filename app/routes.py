@@ -1,23 +1,30 @@
+# app/routes.py
+
 import os
 import uuid
 import shutil
 import aiofiles
 from fastapi import APIRouter, UploadFile, File, HTTPException, Form
 from fastapi.responses import Response, JSONResponse
-from celery.result import AsyncResult
-from app.tasks import celery_app, run_ocr
+from app.job_manager import submit_job, get_job, cancel_job, JobStatus
 
 router = APIRouter()
 
 BASE_DIR = "jobs"
 MAX_FILE_SIZE = 50 * 1024 * 1024  # 50 MB
+
 os.makedirs(BASE_DIR, exist_ok=True)
+
 
 def _job_dir(job_id: str) -> str:
     path = os.path.join(BASE_DIR, job_id)
     os.makedirs(path, exist_ok=True)
     return path
 
+
+# ──────────────────────────────────────────────
+# POST /api/ocr/
+# ──────────────────────────────────────────────
 @router.post("/ocr/")
 async def submit_ocr(
     file: UploadFile = File(...),
@@ -27,69 +34,70 @@ async def submit_ocr(
         raise HTTPException(status_code=400, detail="Only PDF files are allowed.")
 
     contents = await file.read()
+
     if len(contents) == 0:
         raise HTTPException(status_code=400, detail="Uploaded file is empty.")
+
     if len(contents) > MAX_FILE_SIZE:
         raise HTTPException(status_code=400, detail="File too large (max 50 MB).")
 
-    job_id  = str(uuid.uuid4())
-    job_dir = _job_dir(job_id)
-
+    dir_id      = str(uuid.uuid4())
+    job_dir     = _job_dir(dir_id)
     input_path  = os.path.join(job_dir, "input.pdf")
     output_path = os.path.join(job_dir, "output.pdf")
 
     async with aiofiles.open(input_path, "wb") as f:
         await f.write(contents)
 
-    task = run_ocr.apply_async(
-        args=[input_path, output_path, lang, job_dir],
-        task_id=job_id,
-    )
+    job_id = submit_job(input_path, output_path, lang, job_dir)
 
     return JSONResponse(
         status_code=202,
-        content={"job_id": task.id, "status": "queued"},
+        content={"job_id": job_id, "status": "queued"},
     )
 
+
+# ──────────────────────────────────────────────
+# GET /api/status/{job_id}
+# ──────────────────────────────────────────────
 @router.get("/status/{job_id}")
 async def job_status(job_id: str):
-    result = AsyncResult(job_id, app=celery_app)
+    job = get_job(job_id)
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found.")
 
-    if result.state == "PENDING":
-        return {"job_id": job_id, "status": "queued"}
-    if result.state == "STARTED":
-        return {"job_id": job_id, "status": "processing", "step": "Initializing"}
-    if result.state == "PROCESSING":
-        meta = result.info or {}
-        return {"job_id": job_id, "status": "processing", "step": meta.get("step", "Working")}
-    if result.state == "SUCCESS":
-        return {"job_id": job_id, "status": "done"}
-    if result.state == "FAILURE":
-        return JSONResponse(
-            status_code=500,
-            content={"job_id": job_id, "status": "failed", "error": str(result.info)},
-        )
-    return {"job_id": job_id, "status": result.state.lower()}
+    return {
+        "job_id": job_id,
+        "status": job.status.value,
+        "step":   job.step,
+    }
 
+
+# ──────────────────────────────────────────────
+# GET /api/result/{job_id}
+# ──────────────────────────────────────────────
 @router.get("/result/{job_id}")
 async def download_result(job_id: str):
-    result = AsyncResult(job_id, app=celery_app)
+    job = get_job(job_id)
 
-    if result.state != "SUCCESS":
-        raise HTTPException(status_code=404, detail="Result not ready or job not found.")
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found.")
 
-    info = result.result or {}
-    output_path = info.get("output_path")
+    if job.status == JobStatus.FAILED:
+        raise HTTPException(status_code=500, detail=f"Job failed: {job.error}")
 
-    if not output_path or not os.path.exists(output_path):
+    if job.status != JobStatus.DONE:
+        raise HTTPException(status_code=404, detail="Result not ready yet.")
+
+    if not job.output_path or not os.path.exists(job.output_path):
         raise HTTPException(status_code=404, detail="Output file missing.")
 
-    async with aiofiles.open(output_path, "rb") as f:
+    # Read into memory first, then delete — avoids race condition
+    async with aiofiles.open(job.output_path, "rb") as f:
         pdf_bytes = await f.read()
 
-    # Clean up job directory after reading into memory
-    job_dir = os.path.join(BASE_DIR, job_id)
-    shutil.rmtree(job_dir, ignore_errors=True)
+    shutil.rmtree(os.path.dirname(job.output_path), ignore_errors=True)
+    cancel_job(job_id)
 
     return Response(
         content=pdf_bytes,
@@ -97,11 +105,14 @@ async def download_result(job_id: str):
         headers={"Content-Disposition": "attachment; filename=searchable_output.pdf"},
     )
 
+
+# ──────────────────────────────────────────────
+# DELETE /api/job/{job_id}
+# ──────────────────────────────────────────────
 @router.delete("/job/{job_id}")
-async def cancel_job(job_id: str):
-    result = AsyncResult(job_id, app=celery_app)
-    result.revoke(terminate=True)
-    job_dir = os.path.join(BASE_DIR, job_id)
-    if os.path.exists(job_dir):
-        shutil.rmtree(job_dir, ignore_errors=True)
+async def delete_job(job_id: str):
+    job = get_job(job_id)
+    if job and job.output_path:
+        shutil.rmtree(os.path.dirname(job.output_path), ignore_errors=True)
+    cancel_job(job_id)
     return {"job_id": job_id, "status": "cancelled"}

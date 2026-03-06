@@ -5,7 +5,7 @@ from app.ocr_engine import process_pdf
 from app.pdf_utils import merge_pdfs, cleanup as cleanup_temp_files
 
 
-REDIS_URL = os.getenv("REDIS_URL", "redis://redis:6379/0")
+REDIS_URL = os.getenv("REDIS_URL", "")
 
 celery_app = Celery(
     "scansutra",

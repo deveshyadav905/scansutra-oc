@@ -1,0 +1,51 @@
+[project]
+name = "scansutra-ocr"
+version = "2.0.0"
+description = "Convert scanned PDFs into fully searchable PDFs using FastAPI + Tesseract OCR"
+authors = [
+    { name = "Devesh Yadav" }
+]
+readme = "README.md"
+license = { text = "MIT" }
+requires-python = ">=3.12"
+
+dependencies = [
+    "fastapi",
+    "uvicorn[standard]",
+    "python-multipart",
+    "aiofiles",
+    "pytesseract",
+    "pdf2image",
+    "Pillow",
+    "opencv-python-headless>=4.9.0",
+    "numpy",
+    "pypdf",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest",
+    "httpx",       # for FastAPI test client
+    "ruff",        # linter + formatter
+]
+
+[tool.uv]
+dev-dependencies = [
+    "pytest",
+    "httpx",
+    "ruff",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I"]   # pycodestyle, pyflakes, isort
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
