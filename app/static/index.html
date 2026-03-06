@@ -2,293 +2,356 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
+    <title>ScanSutra OCR</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ScanSutra OCR - Professional Edition</title>
     <style>
-        :root {
-            --primary: #2563eb;
-            --bg-body: #f1f5f9;
-            --bg-card: #ffffff;
-            --text-main: #1e293b;
-            --text-muted: #64748b;
-            --border: #e2e8f0;
-            --success: #10b981;
-            --danger: #ef4444;
-            --radius: 12px;
-        }
-        * { box-sizing: border-box; outline: none; }
+        * { box-sizing: border-box; }
         body {
-            font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
-            background: var(--bg-body);
-            color: var(--text-main);
+            font-family: Arial, sans-serif;
+            background: #f4f6f9;
             text-align: center;
-            min-height: 100vh;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            padding: 20px;
+            padding: 40px 20px;
             margin: 0;
         }
         .container {
-            background: var(--bg-card);
+            background: white;
+            max-width: 600px;
+            margin: auto;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+        }
+        input, select, button {
             width: 100%;
-            max-width: 550px;
-            padding: 40px;
-            border-radius: var(--radius);
-            box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1);
+            padding: 10px;
+            margin-top: 10px;
+            border-radius: 5px;
+            border: 1px solid #ccc;
+            font-size: 14px;
         }
-        h1 { font-size: 26px; margin-bottom: 5px; color: var(--text-main); display: flex; align-items: center; justify-content: center; gap: 10px; }
-        p.subtitle { color: var(--text-muted); margin-top: 0; margin-bottom: 25px; }
-        
-        /* Drop Zone */
-        .drop-zone {
-            border: 2px dashed var(--border);
-            border-radius: var(--radius);
-            padding: 30px 20px;
-            cursor: pointer;
-            transition: all 0.2s ease;
-            background: #f8fafc;
-            position: relative;
+        button { background: #007bff; color: white; border: none; cursor: pointer; }
+        button:hover { background: #0056b3; }
+        button:disabled { background: #aaa; cursor: not-allowed; }
+
+        .progress-wrap { display: none; margin-top: 18px; text-align: left; }
+        .progress-label { font-size: 13px; color: #555; margin-bottom: 6px; }
+        .progress-bar-bg { background: #e9ecef; border-radius: 6px; height: 12px; overflow: hidden; }
+        .progress-bar-fill {
+            height: 100%; width: 0%; background: #007bff;
+            border-radius: 6px; transition: width 0.4s ease;
         }
-        .drop-zone:hover, .drop-zone.drag-over { border-color: var(--primary); background: #eff6ff; }
-        .drop-zone input[type="file"] { position: absolute; top: 0; left: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; }
-        
-        /* Controls */
-        .controls { margin-top: 24px; display: grid; gap: 16px; }
-        select { width: 100%; padding: 12px; border: 1px solid var(--border); border-radius: 8px; background: white; font-size: 15px; }
-        button {
-            width: 100%; padding: 14px; border: none; border-radius: 8px;
-            font-size: 16px; font-weight: 600; cursor: pointer;
-            background: var(--primary); color: white;
-            display: flex; align-items: center; justify-content: center; gap: 8px;
+        .status-badge {
+            display: inline-block; margin-top: 12px;
+            padding: 5px 14px; border-radius: 20px;
+            font-size: 13px; font-weight: bold;
         }
-        button:disabled { background: #94a3b8; cursor: not-allowed; }
-        button:hover:not(:disabled) { background: #1d4ed8; }
+        .badge-queued     { background: #fff3cd; color: #856404; }
+        .badge-processing { background: #cfe2ff; color: #084298; }
+        .badge-done       { background: #d1e7dd; color: #0f5132; }
+        .badge-failed     { background: #f8d7da; color: #842029; }
 
-        /* Progress */
-        .progress-wrap { display: none; margin-top: 25px; text-align: left; }
-        .progress-header { display: flex; justify-content: space-between; margin-bottom: 8px; font-size: 14px; font-weight: 600; }
-        .status-badge { font-size: 12px; padding: 4px 10px; border-radius: 20px; font-weight: 700; text-transform: uppercase; }
-        .badge-queued { background: #fff7ed; color: #c2410c; }
-        .badge-processing { background: #eff6ff; color: #1d4ed8; }
-        .badge-done { background: #ecfdf5; color: #047857; }
-        .badge-failed { background: #fef2f2; color: #b91c1c; }
-        .progress-track { background: #e2e8f0; height: 8px; border-radius: 4px; overflow: hidden; }
-        .progress-fill { height: 100%; width: 0%; background: var(--primary); transition: width 0.4s ease; }
-
-        /* Actions */
-        #actionSection { display: none; margin-top: 24px; border-top: 1px solid var(--border); padding-top: 20px; }
-        .btn-secondary { background: white; color: var(--text-main); border: 1px solid var(--border); margin-top: 8px; }
-        .btn-secondary:hover { background: #f8fafc; }
-
-        /* Toast */
-        #toast-container { position: fixed; top: 20px; right: 20px; z-index: 1000; }
-        .toast { background: white; padding: 12px 20px; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.15); margin-bottom: 10px; border-left: 4px solid var(--primary); font-size: 14px; text-align: left; animation: slideIn 0.3s ease; }
-        .toast.error { border-left-color: var(--danger); }
-        .toast.success { border-left-color: var(--success); }
-        @keyframes slideIn { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+        #actionSection { display: none; margin-top: 15px; }
+        #actionSection a { text-decoration: none; }
+        #pdfPreview { display: none; margin-top: 20px; }
+        iframe { width: 100%; height: 500px; border: 1px solid #ddd; border-radius: 6px; }
+        .result { margin-top: 16px; padding: 10px; font-size: 14px; border-radius: 5px; }
+        footer { margin-top: 40px; font-size: 13px; color: #888; }
+        footer a { color: #007bff; text-decoration: none; }
     </style>
 </head>
 <body>
-
-<div id="toast-container"></div>
-
 <div class="container">
-    <h1>
-        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>
-        ScanSutra
-    </h1>
-    <p class="subtitle">Professional OCR PDF Tool</p>
+    <h1>📄 ScanSutra OCR</h1>
+    <p>Upload PDF → Get Searchable PDF</p>
 
-    <div class="drop-zone" id="dropZone">
-        <input type="file" id="pdfFile" accept="application/pdf">
-        <div style="font-size: 40px; margin-bottom: 10px;">📄</div>
-        <div style="font-weight: 600;">Click or Drag PDF here</div>
-        <div style="font-size: 13px; color: var(--text-muted);">Max 50MB</div>
-    </div>
-
-    <div class="controls">
-        <select id="language">
-            <option value="eng">English</option>
-            <option value="hin">Hindi</option>
-            <option value="hin+eng">Hindi + English</option>
-        </select>
-        <button id="processBtn" onclick="uploadPDF()">Start OCR Process</button>
-    </div>
+    <input type="file" id="pdfFile" accept="application/pdf">
+    <select id="language">
+        <option value="eng">English</option>
+        <option value="hin">Hindi</option>
+        <option value="hin+eng">Hindi + English</option>
+    </select>
+    <button id="processBtn" onclick="uploadPDF()">Process PDF</button>
 
     <div class="progress-wrap" id="progressWrap">
-        <div class="progress-header">
-            <span id="progressLabel">Uploading...</span>
-            <span class="status-badge badge-queued" id="statusBadge">Queued</span>
+        <div class="progress-label" id="progressLabel">Uploading...</div>
+        <div class="progress-bar-bg">
+            <div class="progress-bar-fill" id="progressFill"></div>
         </div>
-        <div class="progress-track">
-            <div class="progress-fill" id="progressFill"></div>
-        </div>
+        <span class="status-badge badge-queued" id="statusBadge">Queued</span>
     </div>
 
     <div id="actionSection">
-        <a id="downloadLink" href="#" style="text-decoration:none;">
-            <button>Download Searchable PDF</button>
+        <a id="downloadLink" download="searchable_output.pdf">
+            <button>⬇ Download Searchable PDF</button>
         </a>
-        <button class="btn-secondary" onclick="resetUI()">Process Another</button>
+        <button onclick="previewPDF()">👁 Preview PDF</button>
+        <button onclick="resetUI()" style="background:#6c757d; margin-top:6px;">🔄 Process Another</button>
     </div>
+
+    <div id="pdfPreview">
+        <iframe id="pdfFrame"></iframe>
+    </div>
+
+    <div class="result" id="textOutput"></div>
 </div>
 
-<script>
-// Set to false to use the real Python backend
-const DEMO_MODE = false; 
+<footer>
+    &copy; 2025 <a href="https://github.com/dev-tech" target="_blank">@dev-tech</a>. All rights reserved.
+</footer>
 
-let currentJobId = null;
-let pollInterval = null;
+<script>
+const SESSION_KEY = "scansutra_job_id";  // sessionStorage key
+
+let generatedPDFUrl = null;
+let currentJobId    = null;
+let pollInterval    = null;
+const POLL_MS       = 2500;
 
 const STEPS = {
-    upload:     { label: "Uploading...", pct: 10, badge: "queued",     badgeText: "Uploading"   },
-    queued:     { label: "Queued...",    pct: 20, badge: "queued",     badgeText: "Queued"      },
-    processing: { label: "OCR Running...",pct: 60, badge: "processing", badgeText: "Processing"  },
-    merging:    { label: "Merging...",   pct: 85, badge: "processing", badgeText: "Merging"     },
-    done:       { label: "Done!",        pct: 100,badge: "done",       badgeText: "Complete"    },
-    failed:     { label: "Failed",       pct: 100,badge: "failed",     badgeText: "Failed"      },
+    upload:     { label: "Uploading file...",      pct: 10,  badge: "queued",     text: "Uploading"   },
+    queued:     { label: "Job queued...",          pct: 20,  badge: "queued",     text: "Queued"      },
+    processing: { label: "Running OCR...",         pct: 60,  badge: "processing", text: "Processing"  },
+    merging:    { label: "Merging pages...",       pct: 85,  badge: "processing", text: "Merging"     },
+    done:       { label: "Done! ✅",              pct: 100, badge: "done",       text: "Complete"    },
+    failed:     { label: "Failed ❌",              pct: 100, badge: "failed",     text: "Failed"      },
 };
 
-function showToast(msg, type='info') {
-    const container = document.getElementById('toast-container');
-    const toast = document.createElement('div');
-    toast.className = `toast ${type}`;
-    toast.innerText = msg;
-    container.appendChild(toast);
-    setTimeout(() => { toast.style.opacity = '0'; setTimeout(() => toast.remove(), 300); }, 3000);
-}
-
+// ── Progress UI ────────────────────────────────────────────────────────────────
 function setProgress(state, extraLabel = "") {
     const s = STEPS[state];
     if (!s) return;
-    document.getElementById("progressFill").style.width = s.pct + "%";
+    document.getElementById("progressFill").style.width  = s.pct + "%";
     document.getElementById("progressLabel").textContent = extraLabel || s.label;
     const badge = document.getElementById("statusBadge");
-    badge.className = `status-badge badge-${s.badge}`;
-    badge.textContent = s.badgeText;
+    badge.className   = `status-badge badge-${s.badge}`;
+    badge.textContent = s.text;
 }
 
-async function uploadPDF() {
-    const fileInput = document.getElementById("pdfFile");
-    const lang = document.getElementById("language").value;
-    const file = fileInput.files[0];
+// ── Session persistence ────────────────────────────────────────────────────────
+function saveSession(jobId) {
+    sessionStorage.setItem(SESSION_KEY, jobId);
+}
 
-    if (!file) return showToast("Please select a PDF file.", "error");
-    if (file.type !== "application/pdf" && !file.name.toLowerCase().endsWith(".pdf")) {
-        return showToast("Only PDF files are supported.", "error");
+function loadSession() {
+    return sessionStorage.getItem(SESSION_KEY);
+}
+
+function clearSession() {
+    sessionStorage.removeItem(SESSION_KEY);
+}
+
+// ── Cancel job on server ───────────────────────────────────────────────────────
+function cancelJobOnServer(jobId) {
+    if (!jobId) return;
+    // sendBeacon fires reliably even during page unload
+    navigator.sendBeacon(`/api/job/${jobId}/cancel`);
+}
+
+// ── Reset UI ───────────────────────────────────────────────────────────────────
+function resetUI() {
+    stopPolling();
+
+    // ✅ Cancel the server job before clearing session
+    const savedId = currentJobId || loadSession();
+    if (savedId) {
+        cancelJobOnServer(savedId);
     }
 
-    document.getElementById("processBtn").disabled = true;
-    document.getElementById("progressWrap").style.display = "block";
-    setProgress("upload");
+    currentJobId = null;
+    clearSession();
+
+    document.getElementById("pdfFile").value                 = "";
+    document.getElementById("progressWrap").style.display    = "none";
+    document.getElementById("actionSection").style.display   = "none";
+    document.getElementById("pdfPreview").style.display      = "none";
+    document.getElementById("textOutput").innerHTML          = "";
+    document.getElementById("pdfFrame").src                  = "";
+    document.getElementById("downloadLink").href             = "#";
+    document.getElementById("processBtn").disabled           = false;
+    document.getElementById("progressFill").style.width      = "0%";
+
+    if (generatedPDFUrl) {
+        URL.revokeObjectURL(generatedPDFUrl);
+        generatedPDFUrl = null;
+    }
+}
+
+// ── On page load — resume or cancel orphaned job ───────────────────────────────
+window.addEventListener("load", () => {
+    const savedJobId = loadSession();
+
+    if (savedJobId) {
+        // ✅ Page was refreshed — resume polling instead of leaving job orphaned
+        currentJobId = savedJobId;
+
+        document.getElementById("processBtn").disabled        = true;
+        document.getElementById("progressWrap").style.display = "block";
+        setProgress("processing", "Resuming previous job...");
+
+        // Check if it's still alive
+        fetch(`/api/status/${savedJobId}`)
+            .then(r => r.json())
+            .then(data => {
+                if (data.status === "done") {
+                    // Already finished while page was reloading
+                    stopPolling();
+                    setProgress("done");
+                    fetchResult();
+                } else if (data.status === "failed") {
+                    showError(data.error || "Job failed.");
+                    clearSession();
+                } else if (data.status === "queued" || data.status === "processing") {
+                    // Still running — resume polling
+                    startPolling();
+                } else {
+                    // Unknown/cancelled — clean up
+                    cancelJobOnServer(savedJobId);
+                    clearSession();
+                    resetUI();
+                }
+            })
+            .catch(() => {
+                // Server unreachable — clean up locally
+                clearSession();
+                resetUI();
+            });
+    }
+});
+
+// ── On tab close / hard refresh (Ctrl+Shift+R) ────────────────────────────────
+window.addEventListener("beforeunload", () => {
+    const jobId = currentJobId || loadSession();
+    if (!jobId) return;
+
+    // Check if job is still in progress — if so cancel it
+    // We can't do async here so we use sendBeacon for the DELETE call
+    // sendBeacon uses POST — our cancel endpoint is DELETE
+    // Workaround: hit a dedicated POST cancel endpoint
+    navigator.sendBeacon(`/api/job/${jobId}/cancel`);
+});
+
+// ── Upload ─────────────────────────────────────────────────────────────────────
+async function uploadPDF() {
+    const fileInput = document.getElementById("pdfFile");
+    const lang      = document.getElementById("language").value;
+
+    if (!fileInput.files.length) { alert("Please select a PDF file."); return; }
+    if (!fileInput.files[0].name.toLowerCase().endsWith(".pdf")) {
+        alert("Only PDF files are supported."); return;
+    }
+
+    // ✅ Cancel any previous orphaned job before starting new one
+    const oldJobId = loadSession();
+    if (oldJobId) cancelJobOnServer(oldJobId);
+    clearSession();
 
     const formData = new FormData();
-    formData.append("file", file);
+    formData.append("file", fileInput.files[0]);
     formData.append("lang", lang);
 
+    document.getElementById("processBtn").disabled        = true;
+    document.getElementById("progressWrap").style.display = "block";
+    document.getElementById("actionSection").style.display = "none";
+    document.getElementById("textOutput").innerHTML        = "";
+    setProgress("upload");
+
     try {
-        if (DEMO_MODE) {
-            // Mock delay
-            await new Promise(r => setTimeout(r, 1000));
-            currentJobId = "demo_job_123";
-        } else {
-            const res = await fetch("/api/ocr/", { method: "POST", body: formData });
-            if (!res.ok) throw new Error((await res.json()).detail || "Upload failed");
-            const data = await res.json();
-            currentJobId = data.job_id;
+        const res = await fetch("/api/ocr/", { method: "POST", body: formData });
+        if (!res.ok) {
+            const err = await res.json().catch(() => ({}));
+            throw new Error(err.detail || `Server error ${res.status}`);
         }
+        const data = await res.json();
+        currentJobId = data.job_id;
+
+        // ✅ Save to sessionStorage immediately — survives refresh
+        saveSession(currentJobId);
+
         setProgress("queued");
         startPolling();
+
     } catch (err) {
         showError(err.message);
     }
 }
 
+// ── Polling ────────────────────────────────────────────────────────────────────
 function startPolling() {
     stopPolling();
-    pollInterval = setInterval(pollStatus, 2000);
+    pollInterval = setInterval(pollStatus, POLL_MS);
 }
 
 function stopPolling() {
-    if (pollInterval) clearInterval(pollInterval);
-    pollInterval = null;
+    if (pollInterval) { clearInterval(pollInterval); pollInterval = null; }
 }
 
 async function pollStatus() {
     if (!currentJobId) return;
     try {
-        let data;
-        if (DEMO_MODE) {
-            // Mock status progression
-            const step = Math.floor(Date.now() / 2000) % 3;
-            data = { 
-                status: step === 2 ? "done" : "processing", 
-                step: step === 0 ? "Scanning" : (step === 1 ? "Recognizing" : "Merging") 
-            };
-        } else {
-            const res = await fetch(`/api/status/${currentJobId}`);
-            if (!res.ok) throw new Error("Status check failed");
-            data = await res.json();
-        }
+        const res  = await fetch(`/api/status/${currentJobId}`);
+        if (!res.ok) throw new Error(`Status check failed: ${res.status}`);
+        const data = await res.json();
 
-        if (data.status === "queued") setProgress("queued");
-        else if (data.status === "processing") {
+        if (data.status === "queued") {
+            setProgress("queued");
+        } else if (data.status === "processing") {
             const step = (data.step || "").toLowerCase();
             setProgress(step.includes("merg") ? "merging" : "processing", data.step);
-        }
-        else if (data.status === "done") {
+        } else if (data.status === "done") {
             stopPolling();
             setProgress("done");
-            fetchResult();
-        }
-        else if (data.status === "failed") {
+            await fetchResult();
+        } else if (data.status === "failed") {
             stopPolling();
-            setProgress("failed");
-            showError(data.error || "Processing failed.");
+            clearSession();
+            showError(data.error || "OCR processing failed.");
         }
     } catch (err) {
         stopPolling();
-        showError("Connection error.");
+        showError("Lost connection to server.");
     }
 }
 
+// ── Fetch result ───────────────────────────────────────────────────────────────
 async function fetchResult() {
     try {
-        let blob;
-        if (DEMO_MODE) {
-            blob = new Blob(["Simulated PDF Content"], { type: "application/pdf" });
-        } else {
-            const res = await fetch(`/api/result/${currentJobId}`);
-            if (!res.ok) throw new Error("Download failed");
-            blob = await res.blob();
-        }
-        
-        const url = URL.createObjectURL(blob);
-        document.getElementById("downloadLink").href = url;
+        const res = await fetch(`/api/result/${currentJobId}`);
+        if (!res.ok) throw new Error("Could not retrieve result.");
+        const blob = await res.blob();
+
+        if (generatedPDFUrl) URL.revokeObjectURL(generatedPDFUrl);
+        generatedPDFUrl = URL.createObjectURL(blob);
+
+        document.getElementById("downloadLink").href           = generatedPDFUrl;
         document.getElementById("actionSection").style.display = "block";
-        showToast("Success! PDF is ready.", "success");
-        document.getElementById("processBtn").disabled = false;
+        document.getElementById("textOutput").innerHTML        = "✅ OCR completed successfully!";
+        document.getElementById("processBtn").disabled         = false;
+
+        // ✅ Job done and downloaded — clear session
+        clearSession();
+        currentJobId = null;
+
     } catch (err) {
         showError(err.message);
     }
 }
 
-function showError(msg) {
-    setProgress("failed");
-    showToast(msg, "error");
-    document.getElementById("processBtn").disabled = false;
+// ── Preview ────────────────────────────────────────────────────────────────────
+function previewPDF() {
+    if (!generatedPDFUrl) return;
+    document.getElementById("pdfFrame").src             = generatedPDFUrl;
+    document.getElementById("pdfPreview").style.display = "block";
 }
 
-function resetUI() {
+// ── Error ──────────────────────────────────────────────────────────────────────
+function showError(msg) {
     stopPolling();
-    document.getElementById("pdfFile").value = "";
-    document.getElementById("progressWrap").style.display = "none";
-    document.getElementById("actionSection").style.display = "none";
-    document.getElementById("progressFill").style.width = "0%";
+    setProgress("failed");
+    document.getElementById("textOutput").innerHTML = `❌ Error: ${msg}`;
+    document.getElementById("processBtn").disabled  = false;
+    clearSession();
     currentJobId = null;
 }
 </script>
-
 </body>
 </html>
